@@ -29,6 +29,8 @@ A session stays on the local date it started. Timestamps that place a sample on 
 
 Sam trains on Sunday 9 March, 10:00 to 11:30 in `America/New_York`. Only the first half of that session has uploaded when Monday is scored.
 
+![06:00 score. Risk 0.22, Sunday half uploaded at load 200, seven-day load 2,950.](assets/before.png)
+
 | | 06:00 | After 14:17 |
 | --- | --- | --- |
 | Sunday load | 200 | 400 |
@@ -38,7 +40,11 @@ Sam trains on Sunday 9 March, 10:00 to 11:30 in `America/New_York`. Only the fir
 
 The second half arrives at 14:12. Chunks from the same dock wait a few minutes and become one correction, so the coach sees a single change rather than one update per file.
 
+![After 14:17. Risk 0.27, Sunday load 400, seven-day load 3,150.](assets/after.png)
+
 The model that scored that morning, `lgbm-3`, was trained on Sunday 9 March. Monday 10 March is first included in a training job on Sunday 23 March. That job reads the 06:00 features, seven-day load 2,950, because those are the numbers a morning score can see. The label is 1: Sam’s time-loss injury on 12 March falls inside 10–16 March.
+
+![Full report for the same morning, with the scoring window and the training timeline for lgbm-3.](assets/full_report.png)
 
 ## How a day moves through the system
 
