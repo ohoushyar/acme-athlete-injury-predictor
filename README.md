@@ -2,12 +2,13 @@
 
 A design for scoring each athlete’s injury risk every morning at 06:00 local time, from wearable GPS and inertial data collected over the previous 7 and 28 days. Data that arrives after 06:00 corrects that morning’s score, and the coach can see the old number, the new number, and which workload moved.
 
-This repository is the design. It has the data model, one worked example, a static demo of that example, and the SQL that builds scoring and training rows. There is no application code.
+This repository is the design. It has the design write-up, the data model, one worked example, a static demo of that example, and the SQL that builds scoring and training rows. There is no application code.
 
 ## Documents
 
 | Document | What it contains |
 | --- | --- |
+| [Design](docs/design.md) | Assumptions, data volume, and the ingestion, training, and scoring paths |
 | [Data model](docs/data-model.md) | Entity diagram, Postgres tables, keys, and the S3 layout for raw inertial and GPS files |
 | [Sample data](docs/sample-data.md) | Sam, device D-100, and Monday 10 March 2025, from the raw file through the afternoon correction |
 | [Dashboard](docs/dashboard.html) | The same morning as a coach view, including the scoring window and the training timeline for the model that scored it |
