@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eastside · Monday 10 March 2025</title>
+  <style>
+    :root {
+      --bg: #efe7dc;
+      --ink: #241c16;
+      --muted: #6d6258;
+      --card: #fbf7f2;
+      --line: #e4d8c8;
+      --low: #1f6b45;
+      --low-bg: #e5f2ea;
+      --mod: #8a4e08;
+      --mod-bg: #f8ecd8;
+      --bar: #3e5344;
+      --sun: #c45c1a;
+      --rest: #d9cfc3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.45 "Avenir Next", "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.03em; }
+    .toggle { display: flex; background: var(--card); border-radius: 999px; padding: 4px; border: 1px solid var(--line); }
+    .toggle button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .toggle button[aria-pressed="true"] {
+      background: var(--ink);
+      color: #fff;
+    }
+    .grid { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px 18px 16px;
+    }
+    .who { display: flex; justify-content: space-between; align-items: baseline; }
+    .who h2 { margin: 0; font-size: 28px; letter-spacing: -0.03em; }
+    .who p, .note, .facts p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+    #sunday-note { margin-top: 12px; }
+    .risk {
+      margin-top: 22px;
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .risk strong {
+      font-size: 64px;
+      line-height: 0.85;
+      letter-spacing: -0.04em;
+      font-weight: 600;
+    }
+    .band {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .band.low { color: var(--low); background: var(--low-bg); }
+    .band.moderate { color: var(--mod); background: var(--mod-bg); }
+    .was { margin-top: 14px; font-size: 14px; }
+    h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+    .days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      align-items: end;
+      height: 230px;
+    }
+    .day { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 6px; }
+    .bar {
+      width: 100%;
+      max-width: 42px;
+      border-radius: 8px 8px 3px 3px;
+      background: var(--bar);
+      min-height: 4px;
+    }
+    .bar.sun { background: var(--sun); }
+    .bar.rest { background: var(--rest); height: 4px !important; }
+    .day span { font-size: 12px; color: var(--muted); }
+    .day b { font-size: 13px; font-weight: 600; }
+    .stack { display: flex; flex-direction: column; gap: 16px; }
+    .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .facts div { border-top: 1px solid var(--line); padding-top: 8px; }
+    .facts strong { display: block; font-size: 22px; letter-spacing: -0.03em; }
+    .change p { margin: 0; }
+    .meta { margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .axis, .strip { display: grid; grid-template-columns: repeat(21, 1fr); gap: 3px; }
+    .window-row { display: grid; grid-template-columns: 148px 1fr; gap: 10px; align-items: center; margin-top: 8px; }
+    .window-row span { font-size: 13px; color: var(--muted); }
+    .axis { margin-left: 158px; }
+    .axis b { font-size: 11px; font-weight: 600; text-align: center; color: var(--muted); }
+    .axis b em { display: block; font-style: normal; font-weight: 500; }
+    .axis b.train-day { color: var(--low); }
+    .cell { display: block; height: 22px; border-radius: 4px; background: #efe6da; }
+    .cell.input { background: var(--bar); }
+    .cell.predict { background: var(--ink); }
+    .cell.label { background: var(--sun); }
+    .cell.ready { background: var(--low); }
+    .cell.soon { background: transparent; box-shadow: inset 0 0 0 2px var(--low); }
+    .cell.injury { box-shadow: inset 0 0 0 2px #241c16; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+    .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+    .train { display: flex; gap: 4px; margin-top: 12px; overflow-x: auto; }
+    .seg { min-width: 76px; border-radius: 8px; padding: 8px 8px 7px; color: #fff; }
+    .seg b, .seg em { display: block; font-style: normal; }
+    .seg b { font-size: 12px; }
+    .seg em { font-size: 11px; opacity: 0.85; }
+    .seg.fit { flex: 16 0 auto; background: var(--bar); }
+    .seg.hold { flex: 56 0 auto; background: #5d6e80; }
+    .seg.wait { flex: 8 0 auto; background: #efe6da; color: var(--ink); }
+    .seg.made { flex: 8 0 auto; background: var(--low); }
+    .seg.used { flex: 10 0 auto; background: #cfc6ba; color: var(--ink); }
+    .seg.today { flex: 8 0 auto; background: var(--ink); }
+    .foot { margin: 16px 4px 0; color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      header { flex-direction: column; align-items: flex-start; }
+      .grid, .facts { grid-template-columns: 1fr; }
+      h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">Eastside · America/New_York</p>
+        <h1>Monday 10 March 2025</h1>
+      </div>
+      <div class="toggle" role="group" aria-label="Which score to show">
+        <button id="show-six" type="button" aria-pressed="false">06:00 score</button>
+        <button id="show-update" type="button" aria-pressed="true">After 14:17</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card" aria-labelledby="athlete-name">
+        <div class="who">
+          <h2 id="athlete-name">Sam</h2>
+          <p>Striker</p>
+        </div>
+        <p class="note">Device D-100 · worn 09:00–12:00 Sunday</p>
+        <div class="risk">
+          <strong id="risk">0.27</strong>
+          <span id="band" class="band moderate">Moderate</span>
+        </div>
+        <p class="was" id="was">Updated 14:17 from 0.22 at 06:00</p>
+      </section>
+
+      <section class="card">
+        <h3>Load on the seven days before Monday</h3>
+        <div class="days" id="days"></div>
+        <p class="note" id="sunday-note"></p>
+      </section>
+    </div>
+
+    <div class="stack" style="margin-top: 16px">
+      <section class="card">
+        <h3>Numbers used for this score</h3>
+        <div class="facts">
+          <div><strong id="load7">3,150</strong><p>7-day load</p></div>
+          <div><strong id="load28">9,450</strong><p>28-day load</p></div>
+          <div><strong id="coverage">1.00</strong><p>7-day coverage</p></div>
+        </div>
+        <p class="meta" id="hash"></p>
+      </section>
+
+      <section class="card change">
+        <h3>What changed</h3>
+        <p id="change-text"></p>
+        <p class="meta" id="change-meta"></p>
+      </section>
+
+      <section class="card" aria-labelledby="windows-title">
+        <h3 id="windows-title">Time windows for this Monday</h3>
+        <div class="axis" aria-hidden="true">
+          <b>3<em>Mon</em></b><b>4<em>Tue</em></b><b>5<em>Wed</em></b><b>6<em>Thu</em></b><b>7<em>Fri</em></b><b>8<em>Sat</em></b><b>9<em>Sun</em></b><b>10<em>Mon</em></b><b>11<em>Tue</em></b><b>12<em>Wed</em></b><b>13<em>Thu</em></b><b>14<em>Fri</em></b><b>15<em>Sat</em></b><b>16<em>Sun</em></b><b>17<em>Mon</em></b><b>18<em>Tue</em></b><b>19<em>Wed</em></b><b>20<em>Thu</em></b><b>21<em>Fri</em></b><b>22<em>Sat</em></b><b class="train-day">23<em>train</em></b>
+        </div>
+        <div class="window-row">
+          <span>Scoring inputs</span>
+          <div class="strip">
+            <i class="cell input"></i><i class="cell input"></i><i class="cell input"></i><i class="cell input"></i><i class="cell input"></i><i class="cell input"></i><i class="cell input"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i>
+          </div>
+        </div>
+        <div class="window-row">
+          <span>Day predicted</span>
+          <div class="strip">
+            <i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell predict"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i>
+          </div>
+        </div>
+        <div class="window-row">
+          <span>Training label</span>
+          <div class="strip">
+            <i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell label"></i><i class="cell label"></i><i class="cell label injury" title="Injury recorded on 12 March"></i><i class="cell label"></i><i class="cell label"></i><i class="cell label"></i><i class="cell label"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i>
+          </div>
+        </div>
+        <div class="window-row">
+          <span>Next training</span>
+          <div class="strip">
+            <i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell soon" title="Sunday 16 March job does not include the 10th"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell"></i><i class="cell ready" title="Sunday 23 March includes this morning"></i>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i style="background:#3e5344"></i>3–9 March, workload already finished</span>
+          <span><i style="background:#241c16"></i>10 March, the morning being scored</span>
+          <span><i style="background:#c45c1a"></i>10–16 March, days that can contain the injury</span>
+          <span><i style="box-shadow:inset 0 0 0 2px #1f6b45"></i>16 March, next Sunday job</span>
+          <span><i style="background:#1f6b45"></i>23 March, first job that includes this morning</span>
+        </div>
+        <p class="note">At 06:00 on the 10th the score uses 3–9 March and predicts the 10th. The 28-day input is the same kind of window, from 10 February through 9 March. The outlined day, 12 March, is Sam’s injury. Training runs on Sunday. The next job is 16 March, and it includes mornings through 9 March, so this Monday is not in it. The first Sunday job that includes this morning is 23 March. It reads the 06:00 numbers, revision 1.</p>
+      </section>
+
+      <section class="card" aria-labelledby="train-title">
+        <h3 id="train-title">Training of lgbm-3, the model that scored 10 March</h3>
+        <p class="note">Weekly training runs on Sunday. The job on 9 March produced lgbm-3. On 10 March that model only scores. It does not learn from this morning.</p>
+        <div class="train">
+          <div class="seg fit"><b>Learned from</b><em>through 5 Jan</em></div>
+          <div class="seg hold"><b>Holdout</b><em>6 Jan – 2 Mar</em></div>
+          <div class="seg wait"><b>Not closed</b><em>3–8 Mar</em></div>
+          <div class="seg made"><b>Trained</b><em>9 Mar</em></div>
+          <div class="seg today"><b>This score</b><em>10 Mar</em></div>
+        </div>
+        <p class="note">The newest morning that job could label is 2 March. Its inputs are 23 February through 1 March, and its label is an injury on any day from 2 March through 8 March. The eight weeks from 6 January through 2 March are the holdout. Mornings through 5 January are what it learns from. The workload on 3–9 March is an input to the 10 March score, not a training row of this model. The first Sunday job that can learn from 10 March is 23 March.</p>
+      </section>
+    </div>
+
+    <p class="foot">Demo of the sample data. Monday’s own session is not in these bars. The hamstring injury on 12 March is recorded later and is the training label for this morning. It is not an input to the score.</p>
+  </main>
+  <script>
+    var views = {
+      six: {
+        risk: "0.22",
+        band: "Low",
+        bandClass: "low",
+        was: "First score of the day.",
+        sunday: 200,
+        load7: "2,950",
+        load28: "9,250",
+        coverage: "0.92",
+        hash: "Revision 1 · feature hash h_2950 · model lgbm-3",
+        sundayNote: "Sunday is only half uploaded, so its load is 200 and its coverage is 0.5.",
+        change: "Nothing has arrived since 06:00.",
+        meta: "score_r1 · run_0600 · scheduled"
+      },
+      update: {
+        risk: "0.27",
+        band: "Moderate",
+        bandClass: "moderate",
+        was: "Updated 14:17 from 0.22 at 06:00",
+        sunday: 400,
+        load7: "3,150",
+        load28: "9,450",
+        coverage: "1.00",
+        hash: "Revision 2 · feature hash h_3150 · model lgbm-3",
+        sundayNote: "Sunday’s second half arrived at 14:12. Load for that day went from 200 to 400.",
+        change: "Sunday’s session finished uploading at 14:12. Seven-day load went from 2,950 to 3,150. Risk went from 0.22 to 0.27.",
+        meta: "change_1417 · late_data · batch_sun9_b · score_r1 → score_r2"
+      }
+    };
+
+    var days = [
+      ["Mon 3", 400],
+      ["Tue 4", 0],
+      ["Wed 5", 500],
+      ["Thu 6", 450],
+      ["Fri 7", 600],
+      ["Sat 8", 800],
+      ["Sun 9", null]
+    ];
+
+    function draw(name) {
+      var view = views[name];
+      document.getElementById("risk").textContent = view.risk;
+      var band = document.getElementById("band");
+      band.textContent = view.band;
+      band.className = "band " + view.bandClass;
+      document.getElementById("was").textContent = view.was;
+      document.getElementById("load7").textContent = view.load7;
+      document.getElementById("load28").textContent = view.load28;
+      document.getElementById("coverage").textContent = view.coverage;
+      document.getElementById("hash").textContent = view.hash;
+      document.getElementById("sunday-note").textContent = view.sundayNote;
+      document.getElementById("change-text").textContent = view.change;
+      document.getElementById("change-meta").textContent = view.meta;
+      document.getElementById("show-six").setAttribute("aria-pressed", name === "six" ? "true" : "false");
+      document.getElementById("show-update").setAttribute("aria-pressed", name === "update" ? "true" : "false");
+
+      var root = document.getElementById("days");
+      root.replaceChildren();
+      days.forEach(function (day, index) {
+        var load = index === 6 ? view.sunday : day[1];
+        var col = document.createElement("div");
+        col.className = "day";
+        var value = document.createElement("b");
+        value.textContent = load === 0 ? "rest" : String(load);
+        var bar = document.createElement("div");
+        bar.className = "bar" + (index === 6 ? " sun" : load === 0 ? " rest" : "");
+        bar.style.height = Math.max(4, Math.round((load / 800) * 150)) + "px";
+        var label = document.createElement("span");
+        label.textContent = day[0];
+        col.append(value, bar, label);
+        root.append(col);
+      });
+    }
+
+    document.getElementById("show-six").addEventListener("click", function () { draw("six"); });
+    document.getElementById("show-update").addEventListener("click", function () { draw("update"); });
+    draw("update");
+  </script>
+</body>
+</html>
