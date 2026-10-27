@@ -13,7 +13,7 @@ This repository is the design. It has the design write-up, the data model, one w
 | [Sample data](docs/sample-data.md) | Sam, device D-100, and Monday 10 March 2025, from the raw file through the afternoon correction |
 | [Dashboard](docs/dashboard.html) | The same morning as a coach view, including the scoring window and the training timeline for the model that scored it |
 | [Data prep](docs/data-prep.sql) | Parameterized Postgres queries for the morning feature build and the Sunday training export |
-| [Design notes](prompt.md) | The original brief and the decisions recorded while the design was worked out |
+| [AI notes](prompt.md) | The original brief and the decisions recorded while the design was worked out |
 
 Open [docs/dashboard.html](docs/dashboard.html) in a browser. The toggle switches between the 06:00 score and the correction after 14:17.
 
