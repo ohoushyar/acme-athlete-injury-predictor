@@ -2,7 +2,7 @@
 
 Injury risk is scored from daily workload, not from the 100 Hz samples. Raw inertial and GPS files live in S3. Everything the morning score reads or the coach looks up lives in Postgres.
 
-Business timestamps are `timestamp` without a time zone, plus a `tz` column holding an IANA name such as `America/New_York`. The date of a sample, session, assignment, or minute is the date part of that wall-clock value. An evening session that crosses UTC midnight stays on one local date.
+Business timestamps are `timestamp` without a time zone, plus a `tz` column holding an IANA name such as `America/New_York`. The date of a sample, session, assignment, or minute is the date part of that wall-clock value. An evening session that crosses UTC midnight stays on one local date. Raw sample times are the exception: the file stores them as UTC instants, and the worker converts them to that wall time once.
 
 `received_at`, `created_at`, `recorded_at`, `updated_at`, `approved_at`, `started_at`, `finished_at`, and `scored_at` are UTC instants. They record when the server did something. They do not decide which day a session belongs to.
 
@@ -111,7 +111,7 @@ One uploaded chunk of a session. `batch_id` is the gateway's idempotency key. A 
 | local_ts_start | timestamp | Local wall time of the first sample in the chunk |
 | local_ts_end | timestamp | Local wall time of the last sample in the chunk |
 | tz | text | IANA name |
-| utc_offset_minutes | integer | Offset applied when the device clock was converted. Disambiguates the repeated hour when clocks go back |
+| utc_offset_minutes | integer | Offset applied when `utc_ts` was converted to team local time. `-240` for `America/New_York` in March |
 | s3_uri | text | Object written by the dock |
 | content_sha256 | text | Hash sent when the upload completes |
 | imu_rows | bigint | Inertial rows in this chunk |
@@ -310,9 +310,9 @@ s3://.../imu/dt=YYYY-MM-DD/device_id=<device_id>/batch_id=<batch_id>.parquet
 s3://.../gps/dt=YYYY-MM-DD/device_id=<device_id>/batch_id=<batch_id>.parquet
 ```
 
-`dt` is a plain string. It is the session's local start date, the same value as `sessions.metric_date`. S3 does not interpret it as UTC. Every chunk of a session is stored under that start date, including samples whose own `local_ts` is after local midnight. A session from 19:00 to 23:30 local is one prefix even when those clock times fall on two UTC dates.
+`dt` is a plain string. It is the session's local start date, the same value as `sessions.metric_date`. The folder is that local date even when the UTC timestamps inside the file fall on two UTC dates. A session from 19:00 to 23:30 in `America/New_York` is 23:00 UTC through 03:30 UTC the next day, and the whole file stays under the local start date.
 
-`tz` is the same value on every row of a file.
+Sample times in the file are UTC instants from the device clock. The file has no `tz` column. The worker converts `utc_ts` to team local time once, using the team's IANA timezone, and stores the wall time on the session, the batch, and the minute rows. `utc_offset_minutes` on `sync_batches` is the offset that conversion applied. For `America/New_York` in March it is `-240`, so 14:00 UTC becomes 10:00 local.
 
 ### imu_files
 
@@ -320,8 +320,7 @@ Inertial samples at 100 Hz. Linear acceleration and rotation.
 
 | Column | Type |
 | --- | --- |
-| local_ts | timestamp |
-| tz | text |
+| utc_ts | timestamptz |
 | seq | integer |
 | ax, ay, az | float |
 | gx, gy, gz | float |
@@ -332,8 +331,7 @@ GPS samples at 10 Hz. Where the athlete is and how fast they are moving. A chunk
 
 | Column | Type |
 | --- | --- |
-| local_ts | timestamp |
-| tz | text |
+| utc_ts | timestamptz |
 | lat, lon | float |
 | speed_mps | float |
 | hdop | float |

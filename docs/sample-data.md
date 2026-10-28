@@ -24,7 +24,7 @@ The device is not Sam's. This row says Sam was wearing it on Sunday morning:
 | --- | --- | --- | --- | --- | --- | --- |
 | assign_sun9 | device_d100 | athlete_sam | 2025-03-09 09:00 | 2025-03-09 12:00 | America/New_York | pre_session |
 
-A sample belongs to Sam when `device_id` is `device_d100` and `local_ts` is at or after 09:00 and before 12:00. The raw file has no `athlete_id`.
+The raw file stores UTC and has no athlete column. The worker converts 14:00 UTC with offset `-240`, and the local time 10:00 falls inside `assign_sun9` (09:00 inclusive, 12:00 exclusive), so the sample belongs to Sam.
 
 ## The Sunday session and its two uploads
 
@@ -47,25 +47,25 @@ s3://injury-raw/imu/dt=2025-03-09/device_id=device_d100/batch_id=batch_sun9_b.pa
 s3://injury-raw/gps/dt=2025-03-09/device_id=device_d100/batch_id=batch_sun9_a.parquet
 ```
 
-Two inertial rows from the first file. There is no athlete column. Sam is found later, from `assign_sun9`.
+Two inertial rows from the first file. The timestamps are UTC. Sam is found later, from `assign_sun9`, after the worker converts them to 10:00 local.
 
-| local_ts | tz | seq | ax | ay | az | gx | gy | gz |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2025-03-09 10:00:00.000 | America/New_York | 1 | 0.12 | 0.04 | 9.81 | 0.01 | -0.02 | 0.00 |
-| 2025-03-09 10:00:00.010 | America/New_York | 2 | 0.18 | 0.07 | 9.77 | 0.02 | -0.01 | 0.01 |
+| utc_ts | seq | ax | ay | az | gx | gy | gz |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2025-03-09 14:00:00.000Z | 1 | 0.12 | 0.04 | 9.81 | 0.01 | -0.02 | 0.00 |
+| 2025-03-09 14:00:00.010Z | 2 | 0.18 | 0.07 | 9.77 | 0.02 | -0.01 | 0.01 |
 
-In UTC those instants are 14:00. The stored time and the folder stay on 9 March.
+The folder stays `dt=2025-03-09`, the local start date.
 
-An evening session on another day shows the case that crosses UTC midnight. Saturday 8 March 19:00 to 23:30 in New York is 23:00 UTC on the 8th through 03:30 UTC on the 9th. The folder is still the local start date. These two rows are not extra load. Saturday's total is already the 800 in `daily_aggregates`.
+An evening session on another day shows a file whose UTC timestamps cross midnight. Saturday 8 March 19:00 to 23:30 in New York is 23:00 UTC on the 8th through 03:30 UTC on the 9th. The folder is still the local start date. These two rows are not extra load. Saturday's total is already the 800 in `daily_aggregates`.
 
 ```text
 s3://injury-raw/imu/dt=2025-03-08/device_id=device_d100/batch_id=batch_sat8.parquet
 ```
 
-| local_ts | tz | seq |
-| --- | --- | --- |
-| 2025-03-08 19:00:00.000 | America/New_York | 1 |
-| 2025-03-08 23:30:00.000 | America/New_York | 5400000 |
+| utc_ts | seq |
+| --- | --- |
+| 2025-03-08 23:00:00.000Z | 1 |
+| 2025-03-09 03:30:00.000Z | 5400000 |
 
 ## minute_metrics
 
@@ -154,7 +154,7 @@ The 06:00 row has no change-log entry. The afternoon row points at both scores:
 ## What links to what
 
 - `batch_sun9_a` and `batch_sun9_b` share `session_sun9`. The S3 folder `dt=2025-03-09` is `session_sun9.metric_date`.
-- A raw row at `2025-03-09 10:00` on `device_d100` matches `assign_sun9`, so the load is added to `athlete_sam`.
+- A raw row at `2025-03-09 14:00` UTC on `device_d100` converts to 10:00 local and matches `assign_sun9`, so the load is added to `athlete_sam`.
 - Sunday's `daily_aggregates` row is `metric_date` 2025-03-09. At 06:00 its `accel_load` is 200. After the second batch it is 400.
 - `rolling_features` revision 1 for `as_of_date` 2025-03-10 sums the daily rows from 3 March through 9 March and produces `h_2950`.
 - `score_r1` stores that same hash and `feature_revision` 1. `run_0600.model_version` is `lgbm-3`, whose `feature_set_version` is 3, the same version as the feature row.
