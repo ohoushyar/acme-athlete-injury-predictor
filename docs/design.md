@@ -28,8 +28,8 @@ What lives where:
 
 ```mermaid
 flowchart LR
-  device[Wearable] -->|file after dock| api[FastAPI on EKS]
-  api --> raw[S3 raw Parquet]
+  device[Wearable] -->|register batch| api[FastAPI on EKS]
+  device -->|upload| raw[S3 raw Parquet]
   api --> queue[SQS batch committed]
   queue --> agg[Day aggregator]
   assign[(Postgres assignments)] --> agg
@@ -44,46 +44,9 @@ flowchart LR
 
 ## Schema
 
-Postgres. Business timestamps are `timestamp without time zone` plus a `tz` column (IANA name). Ranges for one device in one timezone cannot overlap, enforced with an exclusion constraint on `device_id`, `tz`, and `tsrange(valid_from, valid_to)`.
+Postgres holds teams, athletes, devices, who wore which device, sessions, upload batches, minute totals, daily totals, rolling features, injuries, model versions, scores, and the change log. Raw inertial and GPS files live in S3. Business timestamps are local wall-clock time plus a `tz` column. Ranges for one device in one timezone cannot overlap.
 
-**teams** — `team_id` uuid PK, `name`, `tz`.
-
-**athletes** — `athlete_id` uuid PK, `team_id` FK, `display_name`, `position`, `active`.
-
-**devices** — `device_id` uuid PK, `serial` unique, `firmware`.
-
-**device_assignments** — who wore the device. `assignment_id` uuid PK, `device_id` FK, `athlete_id` FK, `valid_from` local timestamp, `valid_to` local timestamp null while open, `tz`, `reason` (`pre_session`, `mid_session_swap`, `correction`), `created_at`. Half-open range `[valid_from, valid_to)`.
-
-**sessions** — one continuous recording on a device. `session_id` uuid PK, supplied by the device. `device_id` FK, `started_at` and `ended_at` as local timestamps, `tz`, `expected_imu_rows` (the device's own count for the whole recording, known even when chunks upload later), `metric_date` (the date part of `started_at`, no conversion). Minutes after local midnight stay on this `metric_date`.
-
-**sync_batches** — one uploaded chunk of a session. `batch_id` uuid PK, supplied by the gateway so retries are safe. `session_id` FK, `device_id` FK, `received_at` UTC, `local_ts_start`, `local_ts_end`, `tz`, `utc_offset_minutes` (the offset applied when converting the device clock, so the repeated hour on a fall clock change is unambiguous), `s3_uri`, `content_sha256`, `imu_rows`, `gps_rows`, `status` (`pending`, `landed`, `aggregated`, `failed`).
-
-**minute_metrics** — rebuilt with the day, used for drill-down. PK `(athlete_id, minute_ts)`. `minute_ts` is the local minute, `tz`, `session_date` is the date part of `minute_ts`, `distance_m`, `high_speed_distance_m`, `sprint_count`, `accel_load`, `impact_count`, `max_speed_mps`, `duration_s`, `coverage`. `accel_load` is the sum of the Euclidean norm of successive accelerometer deltas, and the formula is tagged with `metric_version`.
-
-**daily_aggregates** — the facts the features are built from. PK `(athlete_id, metric_date)`. `team_id`, `distance_m`, `high_speed_distance_m`, `sprint_count`, `accel_load`, `impact_count`, `max_speed_mps`, `duration_s`, `session_count`, `coverage`, `metric_version`, `updated_at`. `metric_date` is the session start date, so a session crossing midnight counts entirely on the day it started. `coverage` is the fraction of that day's sessions that has actually arrived: valid attributed inertial samples divided by `expected_imu_rows` for those sessions. A 90-minute recording with only the first 36 minutes uploaded has coverage 0.4. Observed load is not scaled up to fill the gap. A rest day has no row. `coverage_7d` is the average of this value over the session days in the 7-day window. Below 0.7 the morning score is `insufficient_data`, because a low load would otherwise mean "the file is not here yet."
-
-**rolling_features** — one revision per compute. PK `(athlete_id, as_of_date, feature_set_version, revision)`. A row is written every morning for every active athlete. `as_of_date` is the day being predicted. Revision 1 is that morning's 06:00 vector. Later revisions correct the same day. Columns: `load_7d`, `load_28d`, `ewma_load_7d`, `ewma_load_28d`, `acwr_ewma` (`ewma_7d / ewma_28d`), `distance_7d`, `distance_28d`, `hsd_7d`, `hsd_28d`, `monotony_7d`, `strain_7d`, `days_since_session`, `coverage_7d`, `days_since_injury`, `prior_injury_90d`, `position`, `feature_hash`. The 7 and 28 dates are inputs only: the local dates before `as_of_date`. The day's own session has not happened yet, so it is not an input. It becomes an input the next morning.
-
-**injuries** — `injury_id` uuid PK, `athlete_id` FK, `occurred_on` date, `time_loss` bool, `days_lost`, `recorded_at`.
-
-**model_versions** — `model_version` text PK, `feature_set_version`, `label_def_version`, `artifact_s3_uri`, `image_digest`, `git_sha`, `training_snapshot_s3`, `seed`, `metrics` jsonb, `band_thresholds` jsonb, `stage` (`staging`, `production`, `archived`), `approved_at`.
-
-**score_runs** — `score_run_id` uuid PK, `trigger` (`scheduled`, `late_data`, `assignment_correction`), `model_version` FK, `as_of_date`, `started_at`, `finished_at`.
-
-**athlete_scores** — `score_id` uuid PK, `score_run_id` FK, `athlete_id`, `as_of_date`, `feature_revision`, `feature_hash`, `risk` null when coverage is too low, `band` (`insufficient_data`, `low`, `moderate`, `high`), `top_contributions` jsonb (three features), `is_current`, `scored_at`. One current row per `(athlete_id, as_of_date)`.
-
-**score_changes** — what the coach reads after 06:00. `change_id` uuid PK, `athlete_id`, `as_of_date`, `prev_score_id`, `new_score_id`, `prev_risk`, `new_risk`, `reason_code`, `feature_deltas` jsonb (`name`, `old`, `new`), `batch_ids` uuid[], `summary` text, `created_at`.
-
-Raw Parquet columns, both datasets, under `s3://.../imu/dt=YYYY-MM-DD/device_id=/batch_id=.parquet` and the same for `gps/`:
-
-- Inertial: `local_ts`, `tz`, `seq`, `ax`, `ay`, `az`, `gx`, `gy`, `gz`.
-- GPS: `local_ts`, `tz`, `lat`, `lon`, `speed_mps`, `hdop`.
-
-`dt` is a plain string, the session's local start date, the same value as `metric_date`. S3 does not interpret it as UTC. `tz` is inside the file, the same value on every row, so dictionary encoding keeps it small. A session from 19:00 to 23:30 local is one prefix even when those clock times fall on two UTC dates. A rebuild of that local day lists one prefix.
-
-Athlete id is not written into the raw file. A batch is not split at midnight. Every chunk of a session is stored under that session's start date, so a rebuild of the session reads one prefix and the workload stays on one `metric_date`.
-
-Unassigned samples are not dropped. The aggregator writes an **unassigned_spans** row (`device_id`, `local_ts_start`, `local_ts_end`, `tz`, `batch_id`) and leaves those samples out of every athlete total until someone adds an assignment.
+Columns, keys, and the raw-file layout are in [data-model.md](data-model.md).
 
 ## Ingestion
 
@@ -91,6 +54,50 @@ Unassigned samples are not dropped. The aggregator writes an **unassigned_spans*
 2. An EKS worker reads the message, converts the device clock to team local time once, and writes `local_ts` with `tz`. It finds the assignment covering that local time. It rebuilds the session's `metric_date` (the date part of the local start, including any minutes after local midnight): read that prefix, apply current assignments, replace `minute_metrics` and `daily_aggregates` for the athletes who wore the device in that session. Coverage is recomputed from samples arrived so far divided by `expected_imu_rows`.
 3. If today's 06:00 score already exists and a rebuilt day falls inside today's 28-day window, the worker marks those athletes for a partial rescore. A session usually arrives as several chunks a few minutes apart. The rescore waits about five minutes and folds every chunk for that athlete into one new score and one change-log row, so the coach sees one correction for the session.
 4. An assignment edit uses the same rebuild. The `reason_code` on the change row is `assignment_correction` instead of `late_data`. The steps for a handoff are in [Device swap](#device-swap).
+
+### Queue messages
+
+One queue carries two message types. The body is a small JSON object. The file stays in S3, and the worker loads `sync_batches` by `batch_id` for the S3 URI, the time span, `tz`, and the clock offset.
+
+**batch_landed.** Published once, when `POST /sync-batches/{batch_id}/complete` finds the object in S3. A repeated `batch_id` returns the original row and does not publish a second message.
+
+| Field | Meaning |
+| --- | --- |
+| `batch_id` | Gateway idempotency key |
+| `session_id` | The recording, supplied by the device |
+| `device_id` | The device that recorded the chunk |
+
+Sunday's second chunk:
+
+```json
+{
+  "type": "batch_landed",
+  "batch_id": "batch_sun9_b",
+  "session_id": "session_sun9",
+  "device_id": "device_d100"
+}
+```
+
+The worker opens that batch's Parquet and rebuilds the session. A retried delivery rebuilds the same day again.
+
+**rescore.** Published by the aggregator when a rebuilt day falls inside today's 28-day window and today's 06:00 score already exists. Delivery waits about five minutes. Another chunk for the same athlete during that wait does not publish a second message, so one dock becomes one correction.
+
+| Field | Meaning |
+| --- | --- |
+| `athlete_ids` | Athletes whose totals changed |
+| `as_of_date` | The morning being corrected. This is today |
+| `reason_code` | `late_data`, or `assignment_correction` when the rebuild came from an assignment edit |
+| `batch_ids` | Chunks that caused the rebuild |
+
+```json
+{
+  "type": "rescore",
+  "athlete_ids": ["athlete_sam"],
+  "as_of_date": "2025-03-10",
+  "reason_code": "late_data",
+  "batch_ids": ["batch_sun9_b"]
+}
+```
 
 FastAPI also serves `POST /assignments`, `POST /injuries`, `GET /athletes/{id}/risk?date=`, and `GET /athletes/{id}/risk/changes?date=`.
 
@@ -148,7 +155,7 @@ Reproducibility is the training job's own record plus a copy on `model_versions`
 3. If `coverage_7d` is under 0.7, write `band = insufficient_data` and a null risk. Otherwise score the batch with the production booster, apply that version's band thresholds, and store the three largest feature contributions.
 4. Insert `athlete_scores` as current. This first run has no change-log row.
 
-**After 06:00.** The aggregator enqueues the athletes whose rebuilt days intersect the 28 days before today. The rescore worker waits about five minutes so the chunks of one dock become one correction:
+**After 06:00.** The aggregator publishes the `rescore` message described under [Queue messages](#queue-messages). The rescore worker waits about five minutes so the chunks of one dock become one correction:
 
 1. Recomputes rolling features as the next revision for those athletes only.
 2. Scores the same way, with the same production model.
