@@ -46,7 +46,7 @@ The model that scored that morning, `lgbm-3`, was trained on Sunday 9 March. Mon
 
 ![Full report for the same morning, with the scoring window and the training timeline for lgbm-3.](assets/full_report.png)
 
-## How a day moves through the system
+## How data moves through the system
 
 1. The dock asks FastAPI for a presigned URL, uploads the file straight to S3, then marks the batch complete. The API records the batch and publishes one queue message. It does not receive the file.
 2. A worker converts device time to team local time, attributes each sample to the athlete wearing the device at that timestamp, and rebuilds minute and daily totals. Coverage is the share of the session that has arrived. Observed load is not scaled up to fill a missing half. Samples with no assignment stay listed until someone adds one.

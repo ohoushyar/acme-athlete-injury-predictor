@@ -90,9 +90,35 @@ Unassigned samples are not dropped. The aggregator writes an **unassigned_spans*
 1. The file bytes go straight from the dock to S3. FastAPI never receives the file. The dock calls `POST /sync-batches` with `batch_id`, `device_id`, and the device time span. FastAPI inserts `sync_batches` as `pending` and returns a presigned URL. The dock PUTs the file to that URL. It then calls `POST /sync-batches/{batch_id}/complete` with `content_sha256` and the clock offset. FastAPI checks the object is in S3, marks the row `landed`, and publishes one SQS message. A repeated `batch_id` returns the original row and does not publish a second message.
 2. An EKS worker reads the message, converts the device clock to team local time once, and writes `local_ts` with `tz`. It finds the assignment covering that local time. It rebuilds the session's `metric_date` (the date part of the local start, including any minutes after local midnight): read that prefix, apply current assignments, replace `minute_metrics` and `daily_aggregates` for the athletes who wore the device in that session. Coverage is recomputed from samples arrived so far divided by `expected_imu_rows`.
 3. If today's 06:00 score already exists and a rebuilt day falls inside today's 28-day window, the worker marks those athletes for a partial rescore. A session usually arrives as several chunks a few minutes apart. The rescore waits about five minutes and folds every chunk for that athlete into one new score and one change-log row, so the coach sees one correction for the session.
-4. An assignment edit uses the same rebuild. The `reason_code` on the change row is `assignment_correction` instead of `late_data`.
+4. An assignment edit uses the same rebuild. The `reason_code` on the change row is `assignment_correction` instead of `late_data`. The steps for a handoff are in [Device swap](#device-swap).
 
 FastAPI also serves `POST /assignments`, `POST /injuries`, `GET /athletes/{id}/risk?date=`, and `GET /athletes/{id}/risk/changes?date=`.
+
+## Device swap
+
+Who wore the device is recorded by staff through `POST /assignments`. The uploaded file carries `device_id` and `session_id`. The worker matches each sample's local time to the assignment range that covers it.
+
+Ranges for one device in one timezone are half-open and cannot overlap. Closing one athlete and opening the next at the same local timestamp makes that instant belong to the new athlete.
+
+### Between sessions
+
+1. Sam's assignment for D-100 is open, so `valid_to` is null.
+2. At the handoff, staff set Sam's `valid_to` to the local time, for example 09:00.
+3. Staff call `POST /assignments` for Alex on the same device: `valid_from` 09:00, `valid_to` null, `reason` `pre_session`.
+4. Alex wears the device. It starts a new recording and assigns a new `session_id`.
+5. On dock, the batch is registered with that `session_id` and `device_id`. The worker attributes every sample from 09:00 onward to Alex.
+
+### During a session
+
+A device swap in the middle of a session is not recommended. Hand the device off between sessions, so each recording belongs to one athlete. The steps below cover a swap that has already happened.
+
+1. Sam is already being recorded. The device keeps the same `session_id` and keeps sampling.
+2. At 10:45 the unit moves to Alex.
+3. Staff close Sam at 10:45 and open Alex at 10:45 with `reason` `mid_session_swap`.
+4. When the file lands, the worker reads `session_id` from the batch row and splits the samples at 10:45. Minutes before 10:45 go to Sam. Minutes from 10:45 go to Alex. Both totals stay on the session's start date.
+5. If the file was already counted entirely for Sam, saving the assignment reads the same S3 object again and replaces both athletes' minute and daily totals. Each athlete whose current morning score changes gets one `score_changes` row with `reason_code` `assignment_correction`.
+
+Samples that match no range are written to `unassigned_spans` and stay out of both athletes. Posting the missing assignment runs the same rebuild. A later edit to a range that was wrong uses `reason` `correction` and that same rebuild.
 
 ## Training
 
